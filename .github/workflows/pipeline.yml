@@ -8,27 +8,20 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-push:
-    name: Build & Push Docker Image
+  build:
+    name: Build Docker Image
     runs-on: ubuntu-latest
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
 
-      - name: Login a Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build y push imagen
+      - name: Build imagen
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/lab-github-actions:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/lab-github-actions:${{ github.sha }}
+          push: false
+          load: true
+          tags: lab-github-actions:${{ github.sha }}
 
   scan:
     name: Scan de seguridad (Trivy)
@@ -56,10 +49,34 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
+  push:
+    name: Push a Docker Hub
+    runs-on: ubuntu-latest
+    needs: scan
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Login a Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build y push imagen
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/lab-github-actions:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/lab-github-actions:${{ github.sha }}
+
   test:
     name: Test
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: build
     steps:
       - name: Simular tests
         run: echo "Tests pendientes — se implementan en el siguiente paso"
